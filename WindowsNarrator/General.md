@@ -5,7 +5,7 @@ https://support.microsoft.com/en-us/windows/appendix-b-narrator-keyboard-command
 |------------------------------------	|------------------------------------------------------------------------------	|--------------------------------------------------------------------------------------	|
 | Press   these keys                 	| To do this                                                                   	| Comments                                                                             	|
 | Windows   logo key  + Ctrl + Enter 	| Start or stop Narrator                                                       	|                                                                                      	|
-| Narrator + Esc                     	| Exit   Narrator                                                              	| Narrator   Key is either/or Windows Logo Key or Insert Key. (Shift + Windows = Exit) 	|
+| Narrator + Esc                     	| Exit   Narrator                                                              	| Narrator   Key is either/or Windows Logo Key or Insert Key. (Shift + Windows = Exit) or (Insert + Esc) 	|
 | Narrator + 1                       	| Toggle   input learning                                                      	|                                                                                      	|
 | Narrator + Right arrow             	| Move   to next item                                                          	|                                                                                      	|
 | Narrator + Left arrow              	| Move   to previous item                                                      	|                                                                                      	|
