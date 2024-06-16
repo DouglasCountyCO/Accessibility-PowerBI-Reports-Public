@@ -1,0 +1,41 @@
+let
+    Source = AzureStorage.Blobs(Datalake),
+    #"v_foreclosure_detail_flat pq" = Source{[#"Folder Path"="https://dldwprwestus3.blob.core.windows.net/datalake",Name="consumer/foreclosure/v_foreclosure_detail_flat/v_foreclosure_detail_flat.pq"]}[Content],
+    #"Imported Parquet" = Parquet.Document(#"v_foreclosure_detail_flat pq"),
+    #"Merged AntiJoin" = Table.NestedJoin(#"Imported Parquet", {"PKId"}, IntradayForeclosureSearch, {"PKId"}, "IntradayForeclosureSearch", JoinKind.LeftAnti),
+    #"Removed Columns" = Table.RemoveColumns(#"Merged AntiJoin",{"IntradayForeclosureSearch"}),
+    #"Appended Query" = Table.Combine({#"Removed Columns", IntradayForeclosureSearch}),
+    #"Camel Cap" = Table.TransformColumnNames(#"Appended Query", each Text.Combine(Splitter.SplitTextByCharacterTransition({"a".."z"}, {"A".."Z"})(_), " " )),
+    #"Number Cap" = Table.TransformColumnNames(#"Camel Cap", each Text.Combine(Splitter.SplitTextByCharacterTransition({"a".."z"}, {"0".."9"}) (_), " " )),
+    #"Underscore" = Table.RenameColumns(#"Number Cap", List.Transform(Table.ColumnNames(#"Number Cap"), each {_, Text.Replace(_, "_", " ")})),
+    #"Filtered Rows" = Table.SelectRows(Underscore, each [PKId] <> 1561),
+    #"Renamed Columns" = Table.RenameColumns(#"Filtered Rows",{{"PT NO", "PT"}, {"Date File Received", "Created"}}),
+
+    // Define the new variables for Power BI report
+    BaseUrl = "https://app.powerbigov.us/groups/b8a57e9f-6309-46e4-9ead-426271f59046/reports/68e6c233-2b0b-432a-b4bb-4efc5851e419/ReportSection5e68b5574a2aaa4bc0dc",
+
+
+    // #"Added County Parcel Number Link" = Table.AddColumn(#"Renamed Columns", "County Parcel Number Link", each "https://apps.douglas.co.us/assessor/web/#/details/" & [County Parcel Number]),
+    #"Added County Parcel Number Link" = Table.AddColumn(#"Renamed Columns", "County Parcel Number Link", each BaseUrl & [County Parcel Number]),
+    #"Added State Parcel Number Code" = Table.AddColumn(#"Added County Parcel Number Link", "State Parcel Number Code", each Text.Replace([State Parcel Number],"-","")),
+    #"Merged Queries" = Table.NestedJoin(#"Added State Parcel Number Code", {"County Parcel Number"}, #"Foreclosure Location", {"County Parcel Number"}, "Foreclosure Location", JoinKind.LeftOuter),
+    #"Expanded Foreclosure Location" = Table.ExpandTableColumn(#"Merged Queries", "Foreclosure Location", {"x", "y"}, {"Foreclosure Location.x", "Foreclosure Location.y"}),
+    #"Added Detail Link" = Table.AddColumn(#"Expanded Foreclosure Location", "Detail Link", each detailLink & [#"PT"]),
+    #"Added Bid Received" = Table.AddColumn(#"Added Detail Link", "Bid Received", each if [Bid From the Lender] <> null then "Yes" else "No"),
+    #"Renamed Columns1" = Table.RenameColumns(#"Added Bid Received",{{"Detail Link", "PT # Link"}, {"Deficiency Or Overbid", "Deficiency Or Overbid Raw"}}),
+    #"Added Deficiency Or Overbid" = Table.AddColumn(#"Renamed Columns1", "Deficiency Or Overbid", each if [Accepted Bid Final Sale Amount] = 0.00 or [Accepted Bid Final Sale Amount] = null
+ then null else [Deficiency Or Overbid Raw]),
+    #"Renamed Columns2" = Table.RenameColumns(#"Added Deficiency Or Overbid",{{"Restart 1Election Reception", "Restart 1 Election Reception"}}),
+    #"Merged Peace Officer" = Table.NestedJoin(#"Renamed Columns2", {"County Parcel Number"}, #"Peace Officer", {"County Parcel Number"}, "Peace Officer", JoinKind.LeftOuter),
+    #"Expanded Peace Officer" = Table.ExpandTableColumn(#"Merged Peace Officer", "Peace Officer", {"County Parcel Number"}, {"Peace Officer.County Parcel Number"}),
+    #"Replaced Current Owner" = Table.ReplaceValue(#"Expanded Peace Officer",each [Current Owner], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Current Owner],Replacer.ReplaceText, {"Current Owner"} ),
+    #"Replaced Original Borrower" = Table.ReplaceValue(#"Replaced Current Owner",each [Original Borrower], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Original Borrower],Replacer.ReplaceText, {"Original Borrower"} ),
+
+    #"Replaced Property Address" = Table.ReplaceValue(#"Replaced Original Borrower",each [Property Address], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Property Address],Replacer.ReplaceText, {"Property Address"} ),
+    #"Replaced Property Address Full" = Table.ReplaceValue(#"Replaced Property Address",each [Property Address Full], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Original Borrower],Replacer.ReplaceText, {"Property Address Full"} ),
+    #"Replaced Legal Description" = Table.ReplaceValue(#"Replaced Property Address Full",each [Legal Description], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Original Borrower],Replacer.ReplaceText, {"Legal Description"} ),
+    #"Removed Peace Officer" = Table.RemoveColumns(#"Replaced Legal Description",{"Peace Officer.County Parcel Number"}),
+    #"Added NED" = Table.AddColumn(#"Removed Peace Officer", "NED Recorded", each Text.End([Election And Demand Reception No],10)),
+    #"Changed Type" = Table.TransformColumnTypes(#"Added NED",{{"NED Recorded", type date}})
+in
+    #"Changed Type"
