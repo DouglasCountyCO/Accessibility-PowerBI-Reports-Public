@@ -1,4 +1,7 @@
-| General commands                   	|                                                                              	|                                                                                      	|
+Microsoft List of Commands for Narrator:  
+https://support.microsoft.com/en-us/windows/appendix-b-narrator-keyboard-commands-and-touch-gestures-8bdab3f4-b3e9-4554-7f28-8b15bd37410a#WindowsVersion=Windows_10
+
+|General commands                   	|                                                                              	|                                                                                      	|
 |------------------------------------	|------------------------------------------------------------------------------	|--------------------------------------------------------------------------------------	|
 | Press   these keys                 	| To do this                                                                   	| Comments                                                                             	|
 | Windows   logo key  + Ctrl + Enter 	| Start or stop Narrator                                                       	|                                                                                      	|
