@@ -1,0 +1,13 @@
+    // Define the new variables for Power BI report
+    BaseUrl = "https://app.powerbigov.us/",
+    GroupId = "groups/b8a57e9f-6309-46e4-9ead-426271f59046/",
+    ReportId = "reports/68e6c233-2b0b-432a-b4bb-4efc5851e419/",
+    ReportSection = "ReportSection5e68b5574a2aaa4bc0dc",
+    Filter = "?filter=CountyParcelNumber/CountyParcelNumber eq '",
+    
+    // Construct the full URL
+    FullUrl = BaseUrl & GroupId & ReportId & ReportSection & Filter,
+    
+    // Added County Parcel Number Link
+    #"Added County Parcel Number Link" = Table.AddColumn(#"Renamed Columns", "County Parcel Number Link", each FullUrl & [County Parcel Number] & "'"),
+    
