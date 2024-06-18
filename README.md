@@ -20,7 +20,9 @@ Color Contrast Analyzer (as needed)
 https://www.tpgi.com/color-contrast-checker/
 ![image](https://github.com/DouglasCountyCO/Accessibility-PowerBI-Reports-Public/assets/127148669/a511d4fb-6643-4057-bf25-0a18d0e259a3)
 
-
+***
+![image](https://github.com/DouglasCountyCO/Accessibility-PowerBI-Reports-Public/assets/127148669/d2482649-5337-4124-91c2-eb156e7a11da)
+Full PDF is available here:  References/Website Management.pdf
 
 
 
