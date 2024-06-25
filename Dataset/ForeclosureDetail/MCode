@@ -1,0 +1,78 @@
+//This is the original version
+
+let
+    Source = AzureStorage.Blobs(Datalake),
+    #"v_foreclosure_detail_flat pq" = Source{[#"Folder Path"="https://dldwprwestus3.blob.core.windows.net/datalake",Name="consumer/foreclosure/v_foreclosure_detail_flat/v_foreclosure_detail_flat.pq"]}[Content],
+    #"Imported Parquet" = Parquet.Document(#"v_foreclosure_detail_flat pq"),
+    #"Filtered Rows" = Table.SelectRows(#"Imported Parquet", each ([PKId] <> 1561)),
+    #"Merged Left Anti" = Table.NestedJoin(#"Filtered Rows", {"PKId"}, IntradayForeclosureSearch, {"PKId"}, "IntradayForeclosureSearch", JoinKind.LeftAnti),
+    #"Appended Query" = Table.Combine({#"Merged Left Anti", IntradayForeclosureSearch}),
+    #"Removed Columns" = Table.RemoveColumns(#"Appended Query",{"IntradayForeclosureSearch"}),
+    #"Camel Cap" = Table.TransformColumnNames(#"Removed Columns", each Text.Combine(Splitter.SplitTextByCharacterTransition({"a".."z"}, {"A".."Z"})(_), " " )),
+    #"Number Cap" = Table.TransformColumnNames(#"Camel Cap", each Text.Combine(Splitter.SplitTextByCharacterTransition({"a".."z"}, {"0".."9"}) (_), " " )),
+    #"Underscore" = Table.RenameColumns(#"Number Cap", List.Transform(Table.ColumnNames(#"Number Cap"), each {_, Text.Replace(_, "_", " ")})),
+    #"Merged Peace Officer" = Table.NestedJoin(Underscore, {"County Parcel Number"}, #"Peace Officer", {"County Parcel Number"}, "Peace Officer", JoinKind.LeftOuter),
+    #"Expanded Peace Officer" = Table.ExpandTableColumn(#"Merged Peace Officer", "Peace Officer", {"County Parcel Number"}, {"Peace Officer.County Parcel Number"}),
+    #"Replaced Current Owner" = Table.ReplaceValue(#"Expanded Peace Officer",each [Current Owner], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Current Owner],Replacer.ReplaceText, {"Current Owner"} ),
+    #"Replaced Original Borrower" = Table.ReplaceValue(#"Replaced Current Owner",each [Original Borrower], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Original Borrower],Replacer.ReplaceText, {"Original Borrower"} ),
+
+    #"Replaced Property Address" = Table.ReplaceValue(#"Replaced Original Borrower",each [Property Address], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Property Address],Replacer.ReplaceText, {"Property Address"} ),
+    #"Replaced Property Address Full" = Table.ReplaceValue(#"Replaced Property Address",each [Property Address Full], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Property Address Full],Replacer.ReplaceText, {"Property Address Full"} ),
+    #"Replaced Legal Description" = Table.ReplaceValue(#"Replaced Property Address Full",each [Legal Description], each if [Peace Officer.County Parcel Number] <> null then "N/A" else [Legal Description],Replacer.ReplaceText, {"Legal Description"} ),
+
+    #"Renamed PT" = Table.RenameColumns(#"Replaced Legal Description",{{"PT NO", "PT"}}),
+    #"Removed Peace Officer" = Table.RemoveColumns(#"Renamed PT",{"Peace Officer.County Parcel Number"}),
+    #"Changed Bid From Lender" = Table.TransformColumnTypes(#"Removed Peace Officer",{{"Bid From the Lender", type number}}),
+    #"Added Bid Received" = Table.AddColumn(#"Changed Bid From Lender", "Bid Received", each if [Bid From the Lender] = null then "No" else "Yes"),
+    #"Changed Type" = Table.TransformColumnTypes(#"Added Bid Received",{{"Bid From the Lender", type text}, {"Bid Total Due", type text}, {"Max Sale Date", type date}, {"Junior Intent Filed", type text}}),
+    #"Replaced Value2" = Table.ReplaceValue(#"Changed Type","false","NO",Replacer.ReplaceText,{"Junior Intent Filed"}),
+    #"Replaced Value3" = Table.ReplaceValue(#"Replaced Value2","true","YES",Replacer.ReplaceText,{"Junior Intent Filed"}),
+    #"Add Link" = Table.AddColumn(#"Replaced Value3", "County Parcel Number Link", each "https://apps.douglas.co.us/assessor/web/#/details/" & [County Parcel Number]),
+    #"Renamed Deficiency Or Overbid" = Table.RenameColumns(#"Add Link",{{"Deficiency Or Overbid", "Deficiency Or Overbid Raw"}}),
+    #"Added Deficiency Or Overbid" = Table.AddColumn(#"Renamed Deficiency Or Overbid", "Deficiency Or Overbid", each if [Accepted Bid Final Sale Amount] = 0.00 or [Accepted Bid Final Sale Amount] = null
+ then null else [Deficiency Or Overbid Raw]),
+    #"Removed Deficiency or Overbid Raw" = Table.RemoveColumns(#"Added Deficiency Or Overbid",{"Deficiency Or Overbid Raw"}),
+    #"Unpivoted Columns" = Table.UnpivotOtherColumns(#"Removed Deficiency or Overbid Raw", {"PKId","PT"}, "Attribute", "Value Raw"),
+    #"Changed Type2" = Table.TransformColumnTypes(#"Unpivoted Columns",{{"Value Raw", type text}}),
+    #"Filtered Rows2" = Table.SelectRows(#"Changed Type2", each ([Value Raw] <> "")),
+    #"Added Value" = Table.AddColumn(#"Filtered Rows2", "Value", each if [Attribute] = "Accepted Bid Final Sale Amount" or [Attribute] = "Bid From the Lender" or [Attribute] = "Bid Total Due" or [Attribute] = "Deficiency Or Overbid" or [Attribute] = "Deficiency Or Overbid Raw" or [Attribute] = "Original Note Amount" or [Attribute] = "Outstanding Balance As Of FC Filing" or [Attribute] = "Written Bid From Lender"
+then
+if Text.Start([Value Raw],1) = "-" then
+Text.Format("$(#[9]#[8]#[7]#[c2]#[6]#[5]#[4]#[c1]#[th].#[dec])", 
+[
+9 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 9 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),8) else "", 
+8 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 8 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),7) else "", 
+7 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 7 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),6) else "", 
+c2 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) > 6 then "," else "",
+6 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 6 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),5) else "", 
+5 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 5 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),4) else "", 
+4 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 4 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),3) else "", 
+c1 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) > 3 then "," else "",
+th = Text.End(Text.BeforeDelimiter([Value Raw], "."),3), 
+dec = Text.Start(Text.AfterDelimiter([Value Raw], "."),2)
+    ])
+
+else
+Text.Format("$#[9]#[8]#[7]#[c2]#[6]#[5]#[4]#[c1]#[th].#[dec]", 
+[
+9 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 9 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),8) else "", 
+8 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 8 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),7) else "", 
+7 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 7 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),6) else "", 
+c2 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) > 6 then "," else "",
+6 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 6 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),5) else "", 
+5 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 5 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),4) else "", 
+4 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) >= 4 then Text.At(Text.Reverse(Text.BeforeDelimiter([Value Raw], ".")),3) else "", 
+c1 = if Text.Length(Text.BeforeDelimiter([Value Raw], ".")) > 3 then "," else "",
+th = Text.End(Text.BeforeDelimiter([Value Raw], "."),3), 
+dec = Text.Start(Text.AfterDelimiter([Value Raw], "."),2)
+    ])
+else
+[Value Raw]),
+    #"Replaced Value" = Table.ReplaceValue(#"Added Value","$(-","$(",Replacer.ReplaceText,{"Value"}),
+    #"Replaced Value1" = Table.ReplaceValue(#"Replaced Value","$(-,","$(",Replacer.ReplaceText,{"Attribute"}),
+    #"Removed Columns1" = Table.RemoveColumns(#"Replaced Value1",{"Value Raw"}),
+    #"Merged Queries" = Table.NestedJoin(#"Removed Columns1", {"Attribute"}, ForeclosureDetail_Order, {"Column Name"}, "ForeclosureDetail_Order", JoinKind.LeftOuter),
+    #"Expanded ForeclosureDetail_Order" = Table.ExpandTableColumn(#"Merged Queries", "ForeclosureDetail_Order", {"Column Order", "Heading", "Heading Order"}, {"ForeclosureDetail_Order.Column Order", "ForeclosureDetail_Order.Heading", "ForeclosureDetail_Order.Heading Order"}),
+    #"Renamed Columns1" = Table.RenameColumns(#"Expanded ForeclosureDetail_Order",{{"ForeclosureDetail_Order.Column Order", "Attribute Order"}, {"ForeclosureDetail_Order.Heading", "Heading"}, {"ForeclosureDetail_Order.Heading Order", "Heading Order"}})
+in
+    #"Renamed Columns1"
