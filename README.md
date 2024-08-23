@@ -1,9 +1,10 @@
 # Accessibility: PowerBI Reports
-This repository represents accessibility results from testing power bi reports.
+This repository represents research on power bi accessibility capabilities.
 
-The initial report addressed in this fashion with the Accessibility Insights tool is the Foreclosure Search "AppOwnsData" embedded , but the expectation is that other reports will be assessed and the results will be documented as needed in separate folders. 
+The initial report addressed in this fashion with the Accessibility Insights tool was the Foreclosure Search "AppOwnsData" embedded , but the expectation is that other reports will need be assessed in the future.
 
-The Accessibility Insights tool is a Web Browser extention that can be used in either Microsoft Edge or Google's Chrome browsers.  Douglas County's policy only requires our website to be compliant with Microsoft Edge.
+The following is a list of tools that were evaluated and tested during this effort:
+The Accessibility Insights tool is a Web Browser extention that can be used in either Microsoft Edge or Google's Chrome browsers.  (Douglas County's policy only requires our website to be compliant with Microsoft Edge.)
 
 https://microsoftedge.microsoft.com/addons/detail/accessibility-insights-fo/ghbhpcookfemncgoinjblecnilppimih
 ***
